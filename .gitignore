@@ -1,0 +1,34 @@
+# virtual envs
+venv/
+.venv/
+env/
+ENV/
+
+# python cache
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+
+# notebooks
+.ipynb_checkpoints/
+
+# build / dist
+build/
+dist/
+*.egg-info/
+
+# editors/OS junk
+.vscode/
+.idea/
+.DS_Store
+
+# audio datasets & large media (keep tiny test files only)
+data/
+datasets/
+*.wav
+*.flac
+*.mp3
+
+# logs
+*.log
