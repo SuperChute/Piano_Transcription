@@ -20,74 +20,93 @@ def midi_to_note_name(midi_note):
     note_name = notes[midi_note % 12]
     return f"{note_name}{octave}"
 
-
-#---------------------------------------------------------
-
-def load_and_mix_signals(audio_files, sr=44100):
-    """Load multiple mono files, align lengths, and mix into one signal."""
-    signals = []
-    for path in audio_files:
-        sig, sr_loaded = librosa.load(path, sr=sr, mono=True)
-        if sr_loaded != sr:
-            # librosa.load already resampled to sr when sr=... is passed
-            pass
-        signals.append(sig)
-
-    # Pad all to the same length (max of all)
-    max_len = max(len(s) for s in signals)
-    padded = [np.pad(s, (0, max_len - len(s))) for s in signals]
-
-    # Mix by summing
-    mixed = np.sum(np.stack(padded, axis=0), axis=0)
-    return mixed, sr
-
-
-def plot_wave_and_fft(signal, sr, max_freq_to_show):
-    """Plot time-domain waveform and FFT magnitude of a signal."""
-    # FFT
+# Analyze audio to find dominant frequency
+def detect_dominant_frequency(audio_file):
+    """Find the dominant frequency in an audio file"""
+    # Load audio file
+    # y is the audio time series, sr is the sampling rate
+    signal, sr = librosa.load(audio_file, sr=None, mono=True)
+    print(f"Loaded audio: {len(signal)} samples at {sr} Hz")
+    
+    # Apply FFT to the entire audio
     ft = np.fft.rfft(signal)
     magnitude = np.abs(ft)
+    
+    # Create frequency bins
     freqs = np.fft.rfftfreq(len(signal), 1/sr)
-
-    # Limit spectrum to a readable range
-    mask = freqs <= max_freq_to_show
-
-    # Plot
+    
+    # Find the frequency with highest magnitude
+    dominant_mag = np.argmax(magnitude)
+    dominant_freq = freqs[dominant_mag]
+    
+    # Find the index where frequency reaches desired limit
+    max_freq_to_show = 1000  # Hz
+    max_idx = np.where(freqs <= max_freq_to_show)[0][-1]
+    
+    # Plot the spectrum
     plt.figure(figsize=(12, 4))
-
-    # Time-domain waveform (show whole thing)
     plt.subplot(1, 2, 1)
     plt.plot(signal)
-    plt.title('Mixed Audio Waveform')
+    plt.title('Audio Waveform')
     plt.xlabel('Sample')
     plt.ylabel('Amplitude')
-
-    # Frequency-domain magnitude
+    
     plt.subplot(1, 2, 2)
-    plt.plot(freqs[mask], magnitude[mask])
-    plt.title(f'FFT Magnitude (up to {max_freq_to_show} Hz)')
+    plt.plot(freqs[:max_idx], magnitude[:max_idx])
+    # plt.axvline(x=dominant_freq, color='r', linestyle='--', label=f'Dominant: {dominant_freq:.1f} Hz')
+    plt.title('Frequency Spectrum')
     plt.xlabel('Frequency (Hz)')
     plt.ylabel('Magnitude')
-
+    plt.legend()
     plt.tight_layout()
     plt.show()
+    print(f"Dominant magnitude: {magnitude[dominant_mag]:.1f} Hz")
+    return dominant_freq
 
+def create_midi_from_frequency(freq, duration=2.0, output_file='output.mid'):
+    """Create a MIDI file from a detected frequency"""
+    midi_note = frequency_to_midi(freq)
+    
+    if midi_note is None:
+        print("Invalid frequency detected")
+        return
+    
+    note_name = midi_to_note_name(midi_note)
+    print(f"Detected frequency: {freq:.1f} Hz")
+    print(f"MIDI note: {midi_note} ({note_name})")
+    
+    # Create a music21 stream
+    s = stream.Stream()
+    n = note.Note(midi_note)
+    n.duration.quarterLength = duration
+    s.append(n)
+    
+    # Write to MIDI file
+    s.write('midi', fp=output_file)
+    print(f"MIDI file saved as: {output_file}")
 
+# Main execution
 if __name__ == "__main__":
-    # Multiple note files (example)
-    audio_files = [
-
-        "pure_notes/c5.mp3"
-    ]
-
-    freq_to_show = 1000
-
+    # Path to the audio file
+    audio_file = "pure_notes/c5.mp3"
+    
     try:
-        mixed_signal, sr = load_and_mix_signals(audio_files, sr=44100)
-        plot_wave_and_fft(mixed_signal, sr, freq_to_show)
-
-    except FileNotFoundError as e:
-        print(f"File not found: {e}")
-        print("Check your file paths. If needed, list available files in 'pure_notes/'.")
+        # Detect the dominant frequency
+        freq = detect_dominant_frequency(audio_file)
+        
+        # Convert to MIDI
+        create_midi_from_frequency(freq)
+        
+    except FileNotFoundError:
+        print(f"Audio file '{audio_file}' not found!")
+        print("Available files in pure_notes folder:")
+        import os
+        if os.path.exists("pure_notes"):
+            files = os.listdir("pure_notes")
+            for file in files:
+                if file.endswith(('.mp3', '.wav')):
+                    print(f"  {file}")
+        else:
+            print("  pure_notes folder not found!")
     except Exception as e:
         print(f"Error: {e}")
