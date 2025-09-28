@@ -10,7 +10,7 @@ def frequency_to_midi(freq):
     if freq <= 0:
         return None
     #Formula for converting frequency to MIDI note number via A440 standard
-    midi_note = (12 * np.log2(freq / 440)) + 69 
+    midi_note = (12 * np.log2(freq / 440)) + 69 + 0.5 # Adding 0.5 for rounding
     return round(midi_note)
 
 def midi_to_note_name(midi_note):
@@ -25,43 +25,49 @@ def detect_dominant_frequency(audio_file):
     """Find the dominant frequency in an audio file"""
     # Load audio file
     # y is the audio time series, sr is the sampling rate
-    signal, sr = librosa.load(audio_file, sr=None, mono=True)
+    signal, sr = librosa.load(audio_file, sr=44100, mono=True)
     print(f"Loaded audio: {len(signal)} samples at {sr} Hz")
     
     # Apply FFT to the entire audio
-    ft = np.fft.rfft(signal)
+    ft = np.fft.fft(signal)
     magnitude = np.abs(ft)
+
+    # Create frequency bins 
+    freqs = np.linspace(0, sr, len(magnitude))
     
-    # Create frequency bins
-    freqs = np.fft.rfftfreq(len(signal), 1/sr)
-    
-    # Find the frequency with highest magnitude
-    dominant_mag = np.argmax(magnitude)
-    dominant_freq = freqs[dominant_mag]
-    
-    # Find the index where frequency reaches desired limit
-    max_freq_to_show = 1000  # Hz
-    max_idx = np.where(freqs <= max_freq_to_show)[0][-1]
-    
+    # Find the dominant frequency
+    dominant_idx = np.argmax(magnitude)
+    dominant_freq = freqs[dominant_idx]
+
     # Plot the spectrum
     plt.figure(figsize=(12, 4))
+
+    # Plot audio waveform
     plt.subplot(1, 2, 1)
     plt.plot(signal)
     plt.title('Audio Waveform')
     plt.xlabel('Sample')
     plt.ylabel('Amplitude')
-    
+
+    # Plot frequency spectrum (up to 5000 Hz)
     plt.subplot(1, 2, 2)
-    plt.plot(freqs[:max_idx], magnitude[:max_idx])
-    # plt.axvline(x=dominant_freq, color='r', linestyle='--', label=f'Dominant: {dominant_freq:.1f} Hz')
-    plt.title('Frequency Spectrum')
+    max_freq = 5000
+    mask = freqs <= max_freq
+    plt.plot(freqs[mask], magnitude[mask], label="Spectrum")
+
+    # Add vertical line for dominant frequency
+    if dominant_freq <= max_freq:
+        plt.axvline(x=dominant_freq, color='red', linestyle='--', label=f"Dominant: {dominant_freq:.1f} Hz")
+
+    plt.title('Frequency Spectrum (up to 5000 Hz)')
     plt.xlabel('Frequency (Hz)')
     plt.ylabel('Magnitude')
     plt.legend()
     plt.tight_layout()
     plt.show()
-    
+
     return dominant_freq
+
 
 def create_midi_from_frequency(freq, duration=2.0, output_file='output.mid'):
     """Create a MIDI file from a detected frequency"""
@@ -88,7 +94,7 @@ def create_midi_from_frequency(freq, duration=2.0, output_file='output.mid'):
 # Main execution
 if __name__ == "__main__":
     # Path to the audio file
-    audio_file = "pure_notes/c4.mp3"
+    audio_file = "pure_notes/a4.mp3"
     
     try:
         # Detect the dominant frequency
