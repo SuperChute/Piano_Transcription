@@ -38,7 +38,8 @@ def load_and_mix_signals(audio_files, sr=44100):
     padded = [np.pad(s, (0, max_len - len(s))) for s in signals]
 
     # Mix: average to avoid clipping
-    mixed = np.mean(np.stack(padded, axis=0), axis=0)
+    mixed = np.sum(np.stack(padded, axis=0), axis=0)
+
     return mixed, sr
 
 
