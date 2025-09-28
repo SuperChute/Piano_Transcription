@@ -37,9 +37,8 @@ def load_and_mix_signals(audio_files, sr=44100):
     max_len = max(len(s) for s in signals)
     padded = [np.pad(s, (0, max_len - len(s))) for s in signals]
 
-    # Mix: average to avoid clipping
+    # Mix by summing
     mixed = np.sum(np.stack(padded, axis=0), axis=0)
-
     return mixed, sr
 
 
@@ -77,9 +76,7 @@ def plot_wave_and_fft(signal, sr, max_freq_to_show):
 if __name__ == "__main__":
     # Multiple note files (example)
     audio_files = [
-        "pure_notes/c4.mp3",
-        "pure_notes/e4.mp3",
-        "pure_notes/g4.mp3",
+
         "pure_notes/c5.mp3"
     ]
 
