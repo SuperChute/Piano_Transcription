@@ -61,6 +61,7 @@ def detect_dominant_frequency(audio_file):
     plt.tight_layout()
     plt.show()
     
+    print(f"Dominant magnitude: {magnitude[dominant_mag]:.1f}")
     return dominant_freq
 
 def create_midi_from_frequency(freq, duration=2.0, output_file='output.mid'):
