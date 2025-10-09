@@ -183,6 +183,7 @@ def plot_wave_and_fft(signal, sr, max_freq_to_show):
 
     # 4. Plot Results
     # Limit spectrum to a readable range
+    # 4. Plot Results
     mask = freqs <= max_freq_to_show
 
     plt.figure(figsize=(12, 4))
@@ -201,8 +202,23 @@ def plot_wave_and_fft(signal, sr, max_freq_to_show):
     plt.xlabel('Frequency (Hz)')
     plt.ylabel('Magnitude')
 
+    # >>> NEW: Annotate detected notes on the FFT plot <<<
+    for note_name, f, m in detected_notes:
+        if f <= max_freq_to_show:
+            plt.annotate(
+                note_name,
+                xy=(f, m),
+                xytext=(0, 10),
+                textcoords='offset points',
+                ha='center',
+                fontsize=9,
+                color='red',
+                arrowprops=dict(arrowstyle='->', lw=0.5, color='gray')
+            )
+
     plt.tight_layout()
     plt.show()
+
     
     return detected_notes
 
@@ -212,9 +228,13 @@ def plot_wave_and_fft(signal, sr, max_freq_to_show):
 if __name__ == "__main__":
     audio_files = [
         "pure_notes/c4.mp3",
-        #"pure_notes/d4.mp3",
-        #"pure_notes/e4.mp3",
+        "pure_notes/e4.mp3",
+        "pure_notes/f4.mp3",
+        "pure_notes/g4.mp3",
+        "pure_notes/a4.mp3",
         "pure_notes/c5.mp3",
+        "pure_notes/e5.mp3",
+
 
     ]   
 
