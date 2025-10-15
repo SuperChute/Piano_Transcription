@@ -227,7 +227,7 @@ def plot_wave_and_fft(signal, sr, max_freq_to_show):
 
 if __name__ == "__main__":
     audio_files = [
-        "pure_notes/c4.mp3"
+        "pure_notes/d4.mp3"
     ]   
 
     freq_to_show = 1000 # Max frequency to plot

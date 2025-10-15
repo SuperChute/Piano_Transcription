@@ -179,7 +179,7 @@ def plot_quantized_spectrum(bin_centers, quantized_magnitude, title="Quantized F
     """
     Plot the quantized frequency spectrum.
     """
-    plt.figure(figsize=(12, 4))
+    plt.figure(figsize=(12, 5))
     plt.stem(bin_centers, quantized_magnitude, basefmt=' ')
     plt.xlabel('Frequency (Hz)')
     plt.ylabel('Magnitude')
@@ -207,9 +207,13 @@ if __name__ == "__main__":
     
     # Build basis matrix from pure notes
     note_files = [
-        #"pure_notes/f4_a4_c5_chord.mp3",
+        "pure_notes/c4.mp3",
+        "pure_notes/d4.mp3",
+        "pure_notes/e4.mp3",
         "pure_notes/f4.mp3",
+        "pure_notes/g4.mp3",
         "pure_notes/a4.mp3",
+        "pure_notes/b4.mp3",
         "pure_notes/c5.mp3",
     ]
     
@@ -225,10 +229,8 @@ if __name__ == "__main__":
         # Test: Load and quantize a mixed signal
         print("\n=== Testing Mixed Signal ===")
         test_files = [
-            #"pure_notes/f4_a4_c5_chord.mp3",
-            "pure_notes/f4.mp3",
-            "pure_notes/a4.mp3",
-            "pure_notes/c5.mp3",
+            "pure_notes/d4.mp3",
+            "pure_notes/d5.mp3",
         ]
         
         mixed_signal, _ = load_and_mix_signals(test_files, sr=sr)
