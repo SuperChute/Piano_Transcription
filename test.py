@@ -174,8 +174,8 @@ def detect_notes(A, b, note_names, threshold=0.3):
     # This tells us which combination of notes (columns of A) creates signal b
     solution = np.linalg.lstsq(A, b, rcond=None)
     
-    weights = solution[0]       # The weight for each note
-    error = solution[1]         # How far off the solution is (residual)
+    weights = abs(solution[0])       # The weight for each note
+    error = solution[1]             # How far off the solution is (residual)
     
     # Print Results
     print(f"\nSolution (weights):")
@@ -310,7 +310,7 @@ if __name__ == "__main__":
     num_harmonics = 2
     bin_width = 10.0  # Hz
     sr = 44100
-    detection_threshold = 0.3  # Adjust this to tune sensitivity
+    detection_threshold = 0.25  # Adjust this to tune sensitivity
     
     # Create frequency bins
     print("=== Creating Frequency Bins ===")
@@ -321,14 +321,14 @@ if __name__ == "__main__":
     
     # Build basis matrix from pure notes
     note_files = [
-        "pure_notes/c4.mp3",
-        "pure_notes/d4.mp3",
-        "pure_notes/e4.mp3",
-        "pure_notes/f4.mp3",
-        "pure_notes/g4.mp3",
-        "pure_notes/a4.mp3",
-        "pure_notes/b4.mp3",
-        "pure_notes/c5.mp3",
+        "pure_notes/C4_real.m4a",
+        "pure_notes/D4_real.m4a",
+        "pure_notes/E4_real.m4a",
+        "pure_notes/F4_real.m4a",
+        "pure_notes/G4_real.m4a",
+        "pure_notes/A4_real.m4a",
+        "pure_notes/B4_real.m4a",
+        "pure_notes/C5_real2.m4a",
         "pure_notes/d5.mp3",
         "pure_notes/e5.mp3",
     ]
@@ -348,7 +348,10 @@ if __name__ == "__main__":
         print("="*60)
         
         test_files = [
-            "pure_notes/c4.mp3",
+            "pure_notes/C4_real.m4a",
+            "pure_notes/E4_real.m4a",
+            "pure_notes/G4_real.m4a",
+            "pure_notes/c5.mp3",
         ]
         
         print(f"\nNotes Inputted: {[f.split('/')[-1].split('.')[0].upper() for f in test_files]}")
