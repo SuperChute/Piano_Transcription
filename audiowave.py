@@ -301,12 +301,30 @@ def plot_detection_results(note_names, weights, detected_notes, threshold):
     plt.tight_layout()
     plt.show()
 
-
+def plot_mixed_signal(mixed_signal, sr, title="Mixed Audio Signal"):
+    """
+    Plot the time-domain waveform of the mixed signal.
+    
+    Args:
+        mixed_signal: Mixed audio signal array
+        sr: Sample rate
+        title: Plot title
+    """
+    time = np.arange(len(mixed_signal)) / sr
+    
+    plt.figure(figsize=(14, 5))
+    plt.plot(time, mixed_signal, linewidth=0.5, alpha=0.8)
+    plt.xlabel('Time (seconds)')
+    plt.ylabel('Amplitude')
+    plt.title(title)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
 # --- Main Execution ---
 
 if __name__ == "__main__":
     # Configuration
-    note_range = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5', 'D5', 'E5']
+    note_range = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5', 'D5', 'E5', 'F5', 'G5', 'A5', 'B5', 'C6']
     num_harmonics = 2
     bin_width = 10.0  # Hz
     sr = 44100
@@ -320,15 +338,19 @@ if __name__ == "__main__":
     print(f"Bin width: ±{bin_width} Hz")
     
     # Build basis matrix from pure notes
-    note_files = [
-        #"pure_notes/C4_real.m4a",
-        #"pure_notes/D4_real.m4a",
-        #"pure_notes/E4_real.m4a",
-        #"pure_notes/F4_real.m4a",
-        #"pure_notes/G4_real.m4a",
-        #"pure_notes/A4_real.m4a",
-        #"pure_notes/B4_real.m4a",
-        #"pure_notes/C5_real2.m4a",
+    """
+        Real Notes
+        "pure_notes/C4_real.m4a",
+        "pure_notes/D4_real.m4a",
+        "pure_notes/E4_real.m4a",
+        "pure_notes/F4_real.m4a",
+        "pure_notes/G4_real.m4a",
+        "pure_notes/A4_real.m4a",
+        "pure_notes/B4_real.m4a",
+        "pure_notes/C5_real2.m4a",
+
+
+        Synthetic Notes
         "pure_notes/c4.mp3",
         "pure_notes/d4.mp3",
         "pure_notes/e4.mp3",
@@ -339,6 +361,35 @@ if __name__ == "__main__":
         "pure_notes/c5.mp3",
         "pure_notes/d5.mp3",
         "pure_notes/e5.mp3",
+        
+        Sound Waves
+        "soundwave/C4.webm",
+        "soundwave/D4.webm",
+        "soundwave/E4.webm",
+        "soundwave/F4.webm",
+        "soundwave/G4.webm",
+        "soundwave/A4.webm",
+        "soundwave/B4.webm",
+        "soundwave/C5.webm",
+    """ 
+    note_files = [
+
+        "soundwave/C4.webm",
+        "soundwave/D4.webm",
+        "soundwave/E4.webm",
+        "soundwave/F4.webm",
+        "soundwave/G4.webm",
+        "soundwave/A4.webm",
+        "soundwave/B4.webm",
+        "soundwave/C5.webm",
+        "soundwave/D5.webm",
+        "soundwave/E5.webm",
+        "soundwave/F5.webm",
+        "soundwave/G5.webm",
+        "soundwave/A5.webm",
+        "soundwave/B5.webm",
+        "soundwave/C6.webm",
+        
     ]
     
     try:
@@ -356,16 +407,36 @@ if __name__ == "__main__":
         print("="*60)
         
         test_files = [
-
-            "pure_notes/C4_real.m4a",
-            "pure_notes/E4_real.m4a",
-            "pure_notes/G4_real.m4a",
+            #"pure_notes/C4_real.m4a",
+            #"pure_notes/E4_real.m4a",
+            #"pure_notes/D4_real.m4a",s
+            #"pure_notes/G4_real.m4a",
+            #"pure_notes/F4_real.m4a",
+            #"pure_notes/A4_real.m4a",
+            #"pure_notes/C5_real2.m4a",
+            #"pure_notes/C5_real.m4a",
+            "soundwave/C4.webm",
+            "soundwave/D4.webm",
+            "soundwave/E4.webm",
+            "soundwave/F4.webm",
+            "soundwave/G4.webm",
+            "soundwave/A4.webm",
+            #"soundwave/C5.webm",
+            #"pure_notes/c4.mp3",
+            #"pure_notes/d4.mp3",
+            #"pure_notes/e4.mp3",
+            #"pure_notes/f4.mp3",
+            #"pure_notes/g4.mp3",
+            #"pure_notes/a4.mp3",
+            #"pure_notes/c4_e4_g4_chord.mp3"
         ]
         
         print(f"\nNotes Inputted: {[f.split('/')[-1].split('.')[0].upper() for f in test_files]}")
         
         # Load and mix test signal
         mixed_signal, _ = load_and_mix_signals(test_files, sr=sr)
+        plot_mixed_signal(mixed_signal, sr, 
+                  title=f"Mixed Signal: {[f.split('/')[-1] for f in test_files]}")
         
         # Compute FFT of mixed signal
         ft = np.fft.rfft(mixed_signal)
