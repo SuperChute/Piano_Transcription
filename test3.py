@@ -26,75 +26,6 @@ def midi_to_note_name(midi_note):
 
 # --- Audio Preprocessing ---
 
-def trim_to_fundamental(signal, sr=44100, skip_oscillations=10000, keep_oscillations=20000):
-    """
-    Trim audio to capture only the fundamental frequency by:
-    1. Finding the maximum amplitude (when note is struck)
-    2. Skipping 'skip_oscillations' from that point (removes key strike noise)
-    3. Keeping 'keep_oscillations' of clean audio
-    4. Discarding everything else
-    
-    Args:
-        signal: Audio signal array
-        sr: Sample rate
-        skip_oscillations: Number of oscillations to skip after max amplitude
-        keep_oscillations: Number of oscillations to keep for analysis
-    
-    Returns:
-        Trimmed signal array
-    """
-    # Find the index of maximum amplitude
-    max_idx = np.argmax(np.abs(signal))
-    
-    print(f"  Max amplitude at sample {max_idx} ({max_idx/sr:.4f} seconds)")
-    
-    # Calculate start index: max + skip_oscillations samples
-    start_idx = max_idx + skip_oscillations
-    
-    # Calculate end index: start + keep_oscillations samples
-    end_idx = start_idx + keep_oscillations
-    
-    # Ensure we don't go out of bounds
-    if start_idx >= len(signal):
-        print(f"  Warning: Start index {start_idx} exceeds signal length {len(signal)}")
-        print(f"  Using last {keep_oscillations} samples instead")
-        start_idx = max(0, len(signal) - keep_oscillations)
-        end_idx = len(signal)
-    elif end_idx > len(signal):
-        print(f"  Warning: End index {end_idx} exceeds signal length {len(signal)}")
-        print(f"  Trimming to available samples: {len(signal) - start_idx}")
-        end_idx = len(signal)
-    
-    trimmed = signal[start_idx:end_idx]
-    
-    print(f"  Trimmed: {len(trimmed)} samples ({len(trimmed)/sr:.4f} seconds)")
-    print(f"  Original: {len(signal)} samples → Kept: {len(trimmed)} samples")
-    
-    return trimmed
-
-
-def load_and_trim_audio(audio_file, sr=44100, skip_oscillations=10000, keep_oscillations=20000):
-    """
-    Load an audio file and trim it to capture only the fundamental frequency.
-    
-    Args:
-        audio_file: Path to audio file
-        sr: Sample rate
-        skip_oscillations: Number of oscillations to skip after max amplitude
-        keep_oscillations: Number of oscillations to keep
-    
-    Returns:
-        Trimmed signal array, sample rate
-    """
-    # Load audio
-    signal, sr_loaded = librosa.load(audio_file, sr=sr, mono=True)
-    
-    # Trim to fundamental
-    trimmed_signal = trim_to_fundamental(signal, sr, skip_oscillations, keep_oscillations)
-    
-    return trimmed_signal, sr
-
-
 def load_and_mix_signals(audio_files, sr=44100):
     """
     Load multiple mono files, align their lengths, and mix them into one signal 
@@ -111,33 +42,7 @@ def load_and_mix_signals(audio_files, sr=44100):
     padded = [np.pad(s, (0, max_len - len(s))) for s in signals]
 
     mixed = np.sum(np.stack(padded, axis=0), axis=0)
-    return mixed, sr 
-
-def save_mixed_signal_as_mp3(mixed_signal, sr, output_file='mixed_output.mp3'):
-    """
-    Save the mixed signal as an MP3 file.
-    
-    Args:
-        mixed_signal: Mixed audio signal array
-        sr: Sample rate
-        output_file: Path to save MP3 file
-    """
-    import soundfile as sf
-    from pydub import AudioSegment
-    import os
-    
-    # First save as WAV (temporary)
-    temp_wav = 'temp_mixed.wav'
-    sf.write(temp_wav, mixed_signal, sr)
-    
-    # Convert WAV to MP3
-    audio = AudioSegment.from_wav(temp_wav)
-    audio.export(output_file, format='mp3', bitrate='192k')
-    
-    # Clean up temporary file
-    os.remove(temp_wav)
-    
-    print(f"\n✓ Mixed audio saved: {output_file}")
+    return mixed, sr
 
 
 # --- Frequency Binning ---
@@ -198,9 +103,7 @@ def quantize_fft_to_bins(freqs, magnitude, bin_centers, bin_width=10.0):
 
 # --- Basis Matrix Construction ---
 
-def build_basis_matrix(note_files, bin_centers, sr=44100, bin_width=10.0, 
-                      use_trimming=True, skip_oscillations=10000, keep_oscillations=20000,
-                      plot_first_n=0):
+def build_basis_matrix(note_files, bin_centers, sr=44100, bin_width=10.0):
     """
     Load each pure note, compute FFT, quantize to bins, and stack into matrix A.
     
@@ -209,10 +112,6 @@ def build_basis_matrix(note_files, bin_centers, sr=44100, bin_width=10.0,
         bin_centers: Frequency bins to use
         sr: Sample rate
         bin_width: Bin width for quantization
-        use_trimming: Whether to trim audio to fundamental frequency
-        skip_oscillations: Number of oscillations to skip after max amplitude
-        keep_oscillations: Number of oscillations to keep
-        plot_first_n: Number of first notes to plot before/after trimming (0 to disable)
     
     Returns:
         A: Basis matrix (num_bins × num_notes)
@@ -222,30 +121,13 @@ def build_basis_matrix(note_files, bin_centers, sr=44100, bin_width=10.0,
     note_names = []
     
     print("\n=== Building Basis Matrix ===")
-    print(f"Trimming enabled: {use_trimming}")
-    if use_trimming:
-        print(f"Skip {skip_oscillations} samples, Keep {keep_oscillations} samples")
-    
-    for idx, note_file in enumerate(note_files):
+    for note_file in note_files:
         # Extract note name from filename
         note_name = note_file.split('/')[-1].split('.')[0].upper()
         note_names.append(note_name)
         
-        print(f"\nProcessing: {note_name}")
-        
-        # Load audio (with optional trimming)
-        if use_trimming:
-            # Load original signal first for comparison plotting
-            original_signal, _ = librosa.load(note_file, sr=sr, mono=True)
-            
-            # Trim the signal
-            signal = trim_to_fundamental(original_signal, sr, skip_oscillations, keep_oscillations)
-            
-            # Plot comparison for first N notes
-            if plot_first_n > 0 and idx < plot_first_n:
-                plot_trimming_comparison(original_signal, signal, sr, note_name)
-        else:
-            signal, _ = librosa.load(note_file, sr=sr, mono=True)
+        # Load audio
+        signal, _ = librosa.load(note_file, sr=sr, mono=True)
         
         # Compute FFT
         ft = np.fft.rfft(signal)
@@ -260,7 +142,7 @@ def build_basis_matrix(note_files, bin_centers, sr=44100, bin_width=10.0,
         quantized = quantized / max_val if max_val > 0 else quantized
         
         basis_vectors.append(quantized)
-        print(f"  Max quantized bin = {max_val:.2f}")
+        print(f"  {note_name}: {len(signal)} samples, max quantized bin = {max_val:.2f}")
     
     # Stack as columns
     A = np.column_stack(basis_vectors)
@@ -327,16 +209,28 @@ def create_midi_from_detected_notes(detected_notes, output_file='detected_chord.
         return
     
     s = stream.Stream()
-    
+        
     # Convert note names to MIDI pitches
     midi_pitches = []
     for note_name, weight in detected_notes:
         try:
-            p = pitch.Pitch(note_name)
+            # Extract just the note and octave (first 2 chars for notes like C4, D5, etc.)
+            # or first 3 chars for notes with sharps/flats (C#4, Bb5, etc.)
+            clean_note = note_name.split('_')[0]  # Remove anything after underscore
+            
+            # Handle both single char notes (C4, E5) and sharp/flat notes (C#4, Bb5)
+            if len(clean_note) >= 2:
+                if clean_note[1].isdigit():
+                    # Single char note: C4, E5
+                    clean_note = clean_note[:2]
+                elif len(clean_note) >= 3 and clean_note[2].isdigit():
+                    # Sharp/flat note: C#4, Bb5
+                    clean_note = clean_note[:3]
+            
+            p = pitch.Pitch(clean_note)
             midi_pitches.append(p.midi)
         except:
             print(f"Warning: Could not convert {note_name} to MIDI pitch")
-    
     if midi_pitches:
         c = chord.Chord(midi_pitches)
         c.duration.quarterLength = duration
@@ -419,107 +313,16 @@ def plot_detection_results(note_names, weights, detected_notes, threshold):
     plt.tight_layout()
     plt.show()
 
-def plot_mixed_signal(mixed_signal, sr, title="Mixed Audio Signal"):
-    """
-    Plot the time-domain waveform of the mixed signal.
-    
-    Args:
-        mixed_signal: Mixed audio signal array
-        sr: Sample rate
-        title: Plot title
-    """
-    time = np.arange(len(mixed_signal)) / sr
-    
-    plt.figure(figsize=(14, 5))
-    plt.plot(time, mixed_signal, linewidth=0.5, alpha=0.8)
-    plt.xlabel('Time (seconds)')
-    plt.ylabel('Amplitude')
-    plt.title(title)
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.show()
 
-def plot_trimming_comparison(original_signal, trimmed_signal, sr, note_name):
-    """
-    Visualize the effect of trimming on the audio signal.
-    Shows where the max amplitude was found and what was kept.
-    
-    Args:
-        original_signal: Original audio signal
-        trimmed_signal: Trimmed audio signal
-        sr: Sample rate
-        note_name: Name of the note
-    """
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(16, 10))
-    
-    # Find max amplitude location for visualization
-    max_idx = np.argmax(np.abs(original_signal))
-    
-    # Original signal
-    time_orig = np.arange(len(original_signal)) / sr
-    ax1.plot(time_orig, original_signal, linewidth=0.5, alpha=0.8, color='blue')
-    
-    # Mark the max amplitude point
-    ax1.axvline(x=max_idx/sr, color='red', linestyle='--', linewidth=2, 
-                label=f'Max Amplitude (sample {max_idx})')
-    ax1.scatter([max_idx/sr], [original_signal[max_idx]], color='red', s=100, zorder=5)
-    
-    ax1.set_xlabel('Time (seconds)', fontsize=12)
-    ax1.set_ylabel('Amplitude', fontsize=12)
-    ax1.set_title(f'BEFORE Trimming: {note_name} ({len(original_signal)} samples, {len(original_signal)/sr:.3f}s)', 
-                  fontsize=14, fontweight='bold')
-    ax1.grid(True, alpha=0.3)
-    ax1.legend(fontsize=11)
-    
-    # Trimmed signal
-    time_trim = np.arange(len(trimmed_signal)) / sr
-    ax2.plot(time_trim, trimmed_signal, linewidth=0.5, alpha=0.8, color='green')
-    ax2.set_xlabel('Time (seconds)', fontsize=12)
-    ax2.set_ylabel('Amplitude', fontsize=12)
-    ax2.set_title(f'AFTER Trimming: {note_name} ({len(trimmed_signal)} samples, {len(trimmed_signal)/sr:.3f}s) - Clean Fundamental', 
-                  fontsize=14, fontweight='bold', color='green')
-    ax2.grid(True, alpha=0.3)
-    
-    # Add text annotations
-    reduction_pct = (1 - len(trimmed_signal)/len(original_signal)) * 100
-    ax2.text(0.02, 0.98, f'Removed {reduction_pct:.1f}% of signal\nKept clean fundamental frequency', 
-             transform=ax2.transAxes, fontsize=11, verticalalignment='top',
-             bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.8))
-    
-    plt.tight_layout()
-    plt.show()
-
-def trim_mixed_signal(mixed_signal, sr=44100, skip_oscillations=30000, keep_oscillations=50000):
-    """
-    Trim a mixed signal to focus on the steady-state portion.
-    Useful for removing initial transients from chord recordings.
-    
-    Args:
-        mixed_signal: Mixed audio signal array
-        sr: Sample rate
-        skip_oscillations: Samples to skip after max amplitude
-        keep_oscillations: Samples to keep for analysis
-    
-    Returns:
-        Trimmed signal array
-    """
-    print("\n=== Trimming Mixed Signal ===")
-    trimmed = trim_to_fundamental(mixed_signal, sr, skip_oscillations, keep_oscillations)
-    return trimmed
 # --- Main Execution ---
 
 if __name__ == "__main__":
     # Configuration
-    note_range = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4' ]
-    num_harmonics = 15
+    note_range = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5', 'D5', 'E5']
+    num_harmonics = 2
     bin_width = 10.0  # Hz
     sr = 44100
     detection_threshold = 0.25  # Adjust this to tune sensitivity
-    
-    # Trimming parameters
-    use_trimming = True  # Set to False to disable trimming
-    skip_oscillations = 30000  # Samples to skip after max amplitude
-    keep_oscillations = 50000  # Samples to keep for analysis
     
     # Create frequency bins
     print("=== Creating Frequency Bins ===")
@@ -529,8 +332,7 @@ if __name__ == "__main__":
     print(f"Bin width: ±{bin_width} Hz")
     
     # Build basis matrix from pure notes
-    """
-        Real Notes
+    note_files = [
         "pure_notes/C4_real.m4a",
         "pure_notes/D4_real.m4a",
         "pure_notes/E4_real.m4a",
@@ -539,63 +341,12 @@ if __name__ == "__main__":
         "pure_notes/A4_real.m4a",
         "pure_notes/B4_real.m4a",
         "pure_notes/C5_real2.m4a",
-        "pure_notes/D5_real.m4a",
-        "pure_notes/E5_real.m4a",
-        "pure_notes/F5_real.m4a",
-        "pure_notes/G5_real.m4a",
-        "pure_notes/A5_real.m4a",
-        "pure_notes/B5_real.m4a",
-        "pure_notes/C6_real.m4a",
-        
-        Synthetic Notes
-        "pure_notes/c4.mp3",
-        "pure_notes/d4.mp3",
-        "pure_notes/e4.mp3",
-        "pure_notes/f4.mp3",
-        "pure_notes/g4.mp3",
-        "pure_notes/a4.mp3",
-        "pure_notes/b4.mp3",
-        "pure_notes/c5.mp3",
         "pure_notes/d5.mp3",
         "pure_notes/e5.mp3",
-        "pure_notes/f5.mp3",
-        "pure_notes/g5.mp3",
-        "pure_notes/a5.mp3",
-        "pure_notes/b5.mp3",
-        "pure_notes/c6.mp3",
-        
-        Sound Waves
-        "soundwave/C4.webm",
-        "soundwave/D4.webm",
-        "soundwave/E4.webm",
-        "soundwave/F4.webm",
-        "soundwave/G4.webm",
-        "soundwave/A4.webm",
-        "soundwave/B4.webm",
-        "soundwave/C5.webm",
-    """ 
-    note_files = [
-        "pure_notes/C4_real.m4a",
-        "pure_notes/D4_real.m4a",
-        "pure_notes/E4_real.m4a",
-        "pure_notes/F4_real.m4a",
-        "pure_notes/G4_real.m4a",
-        "pure_notes/A4_real.m4a",
-        "pure_notes/B4_real2.m4a",
-        "pure_notes/C5_real.m4a",
-        "pure_notes/D5_real2.m4a",
-        "pure_notes/E5_real.m4a",
-        "pure_notes/F5_real.m4a",
-        "pure_notes/G5_real.m4a",
-        "pure_notes/A5_real.m4a",
-        "pure_notes/B5_real.m4a",
-        "pure_notes/C6_real.m4a",
     ]
+    
     try:
-        A, note_names = build_basis_matrix(note_files, bin_centers, sr=sr, bin_width=bin_width,
-                                          use_trimming=use_trimming, 
-                                          skip_oscillations=skip_oscillations,
-                                          keep_oscillations=keep_oscillations)
+        A, note_names = build_basis_matrix(note_files, bin_centers, sr=sr, bin_width=bin_width)
         print(f"\n=== Basis Matrix Built ===")
         print(f"Shape: {A.shape} ({A.shape[0]} bins × {A.shape[1]} notes)")
         print(f"Notes: {note_names}")
@@ -609,47 +360,14 @@ if __name__ == "__main__":
         print("="*60)
         
         test_files = [
-        #"pure_notes/C4_real.m4a",
-        #"pure_notes/D4_real.m4a",
-        #"pure_notes/E4_real.m4a",
-        #"pure_notes/F4_real.m4a",
-        #"pure_notes/G4_real.m4a",
-        #"pure_notes/C4_E4_G4_real.m4a",
-
-        #"pure_notes/c4_e4_g4_chord.mp3",
-        #"pure_notes/c4.mp3",
-        #"pure_notes/e4.mp3",
-        #"pure_notes/f4.mp3",
-        #"pure_notes/g4.mp3",
-        #"pure_notes/a4.mp3",
-        #"pure_notes/b4.mp3",
-        #"pure_notes/c5.mp3",
-        #"pure_notes/d5.mp3",
-        #"pure_notes/e5.mp3",
-        
-        #"pure_notes/d4.mp3",
-        #"pure_notes/e4.mp3",
-        #"pure_notes/g4.mp3",
-        #"pure_notes/b4.mp3",
-        "pure_notes/D4_E4_G4_B4_real2.m4a",
-       #"pure_notes/F4_A4_E5_real.m4a",
-       #"pure_notes/C4_E4_G4_C5_real2.m4a",
+            "pure_notes/c4.mp3",
+            "pure_notes/e4.mp3",
         ]
         
         print(f"\nNotes Inputted: {[f.split('/')[-1].split('.')[0].upper() for f in test_files]}")
         
         # Load and mix test signal
         mixed_signal, _ = load_and_mix_signals(test_files, sr=sr)
-        mixed_signal = trim_mixed_signal(
-        mixed_signal, 
-        sr=sr,
-        skip_oscillations=15000,  # Use same params as basis matrix
-        keep_oscillations=80000 
-        )
-        # Save the mixed signal as MP3 for comparison
-        save_mixed_signal_as_mp3(mixed_signal, sr, output_file='mixed_test_output.mp3')
-        plot_mixed_signal(mixed_signal, sr, 
-                  title=f"Mixed Signal: {[f.split('/')[-1] for f in test_files]}")
         
         # Compute FFT of mixed signal
         ft = np.fft.rfft(mixed_signal)
@@ -681,7 +399,7 @@ if __name__ == "__main__":
             print("\n✗ No notes detected (try lowering the threshold)")
         
         # Visualize results
-        plot_detection_results(note_names, x, detected_notes, detection_threshold) 
+        plot_detection_results(note_names, x, detected_notes, detection_threshold)
         
         # Create MIDI output
         if detected_notes:

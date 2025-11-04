@@ -2,6 +2,7 @@ import librosa
 import numpy as np
 import matplotlib.pyplot as plt
 from music21 import stream, note, chord, midi, pitch
+from scipy.optimize import dual_annealing
 
 # --- Configuration and Utility Functions ---
 
@@ -199,8 +200,8 @@ def quantize_fft_to_bins(freqs, magnitude, bin_centers, bin_width=10.0):
 # --- Basis Matrix Construction ---
 
 def build_basis_matrix(note_files, bin_centers, sr=44100, bin_width=10.0, 
-                      use_trimming=True, skip_oscillations=10000, keep_oscillations=20000,
-                      plot_first_n=0):
+                      use_trimming=True, skip_oscillations=0000, keep_oscillations=0000,
+                      plot_first_n=1):
     """
     Load each pure note, compute FFT, quantize to bins, and stack into matrix A.
     
@@ -270,9 +271,9 @@ def build_basis_matrix(note_files, bin_centers, sr=44100, bin_width=10.0,
 
 # --- LINEAR ALGEBRA SOLVER ---
 
-def detect_notes(A, b, note_names, threshold=0.3):
+def detect_notes_dual_annealing(A, b, note_names, threshold=0.3):
     """
-    Solve Ax = b to detect which notes are present in the mixed signal.
+    Solve Ax ≈ b using dual annealing optimization instead of linear algebra.
     
     Args:
         A: Basis matrix (num_bins × num_notes)
@@ -282,29 +283,50 @@ def detect_notes(A, b, note_names, threshold=0.3):
     
     Returns:
         detected_notes: List of (note_name, weight) tuples for detected notes
-        weights: Full weight vector (solution to Ax = b)
+        weights: Full weight vector (optimized solution)
     """
-    print("\n=== Solving Ax = b ===")
+    print("\n=== Solving with Dual Annealing Optimization ===")
     print(f"A shape: {A.shape}")
     print(f"b shape: {b.shape}")
     
-    # Find weights such that A*weights ≈ b
-    # This tells us which combination of notes (columns of A) creates signal b
-    solution = np.linalg.lstsq(A, b, rcond=None)
+    num_notes = A.shape[1]
     
-    weights = abs(solution[0])       # The weight for each note
-    error = solution[1]             # How far off the solution is (residual)
+    # Define the error function to minimize
+    def measure_error(w):
+        """
+        Compute mean squared error between A*w and b.
+        This is what we want to minimize.
+        """
+        b_estimate = A @ w  # Matrix multiplication: A * weights
+        mean_squared_error = np.mean((b_estimate - b) ** 2)
+        return mean_squared_error
     
-    # Print Results
+    # Set bounds for each weight
+    bounds = [(0.0, 2.0)] * num_notes
+    
+    print(f"\nOptimizing {num_notes} weights...")
+    print(f"Bounds per weight: [0.0, 2.0]")
+    
+    # Run dual annealing optimization
+    result = dual_annealing(
+        measure_error,
+        bounds=bounds
+    )
+    
+    weights = result.x  # Optimized weights
+    final_error = result.fun  # Final error value
+    
+    print(f"\nOptimization complete!")
+    print(f"Final MSE: {final_error:.6f}")
+    print(f"Success: {result.success}")
+    print(f"Iterations: {result.nit}")
+    
+    # Print all weights
     print(f"\nSolution (weights):")
     for note, weight in zip(note_names, weights):
         print(f"  {note}: {weight:.4f}")
     
-    if len(error) > 0:
-        print(f"\nResidual error: {error[0]:.6f}")
-    
     # Determine which notes are "present"
-    # Only notes with weight >= threshold are considered detected
     detected_notes = []
     for note, weight in zip(note_names, weights):
         if weight >= threshold:
@@ -488,7 +510,6 @@ def plot_trimming_comparison(original_signal, trimmed_signal, sr, note_name):
     
     plt.tight_layout()
     plt.show()
-
 def trim_mixed_signal(mixed_signal, sr=44100, skip_oscillations=30000, keep_oscillations=50000):
     """
     Trim a mixed signal to focus on the steady-state portion.
@@ -506,15 +527,16 @@ def trim_mixed_signal(mixed_signal, sr=44100, skip_oscillations=30000, keep_osci
     print("\n=== Trimming Mixed Signal ===")
     trimmed = trim_to_fundamental(mixed_signal, sr, skip_oscillations, keep_oscillations)
     return trimmed
+
 # --- Main Execution ---
 
 if __name__ == "__main__":
     # Configuration
     note_range = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4' ]
-    num_harmonics = 15
-    bin_width = 10.0  # Hz
+    num_harmonics = 20
+    bin_width = 20.0  # Hz
     sr = 44100
-    detection_threshold = 0.25  # Adjust this to tune sensitivity
+    detection_threshold = 0.2  # Adjust this to tune sensitivity
     
     # Trimming parameters
     use_trimming = True  # Set to False to disable trimming
@@ -537,9 +559,9 @@ if __name__ == "__main__":
         "pure_notes/F4_real.m4a",
         "pure_notes/G4_real.m4a",
         "pure_notes/A4_real.m4a",
-        "pure_notes/B4_real.m4a",
+        "pure_notes/B4_real2.m4a",
         "pure_notes/C5_real2.m4a",
-        "pure_notes/D5_real.m4a",
+        "pure_notes/D5_real2.m4a",
         "pure_notes/E5_real.m4a",
         "pure_notes/F5_real.m4a",
         "pure_notes/G5_real.m4a",
@@ -589,7 +611,6 @@ if __name__ == "__main__":
         "pure_notes/G5_real.m4a",
         "pure_notes/A5_real.m4a",
         "pure_notes/B5_real.m4a",
-        "pure_notes/C6_real.m4a",
     ]
     try:
         A, note_names = build_basis_matrix(note_files, bin_centers, sr=sr, bin_width=bin_width,
@@ -624,16 +645,25 @@ if __name__ == "__main__":
         #"pure_notes/a4.mp3",
         #"pure_notes/b4.mp3",
         #"pure_notes/c5.mp3",
-        #"pure_notes/d5.mp3",
+        #pure_notes/d5.mp3",
         #"pure_notes/e5.mp3",
+        #"pure_notes/c4_e4_g4_chord.mp3",
+        #"pure_notes/c5.mp3",
         
         #"pure_notes/d4.mp3",
         #"pure_notes/e4.mp3",
         #"pure_notes/g4.mp3",
         #"pure_notes/b4.mp3",
-        "pure_notes/D4_E4_G4_B4_real2.m4a",
-       #"pure_notes/F4_A4_E5_real.m4a",
-       #"pure_notes/C4_E4_G4_C5_real2.m4a",
+        #"pure_notes/D4_E4_G4_B4_real2.m4a",
+        #"pure_notes/D4_E4_A4_B4.m4a",
+        "pure_notes/C4_E4_G4_C5_real3.m4a",
+        #"pure_notes/F4_A4_E5_real.m4a",
+        #"pure_notes/g4.mp3",
+        #"pure_notes/a4.mp3",
+        #"pure_notes/b4.mp3",
+        #"pure_notes/c5.mp3",
+        #"pure_notes/d5.mp3",
+        #"pure_notes/e5.mp3",
         ]
         
         print(f"\nNotes Inputted: {[f.split('/')[-1].split('.')[0].upper() for f in test_files]}")
@@ -644,7 +674,7 @@ if __name__ == "__main__":
         mixed_signal, 
         sr=sr,
         skip_oscillations=15000,  # Use same params as basis matrix
-        keep_oscillations=80000 
+        keep_oscillations=80000
         )
         # Save the mixed signal as MP3 for comparison
         save_mixed_signal_as_mp3(mixed_signal, sr, output_file='mixed_test_output.mp3')
@@ -668,7 +698,7 @@ if __name__ == "__main__":
         plot_quantized_spectrum(bin_centers, b, title="Quantized Mixed Signal (Input)")
         
         # Solve notes
-        detected_notes, x = detect_notes(A, b, note_names, threshold=detection_threshold)
+        detected_notes, x = detect_notes_dual_annealing(A, b, note_names, threshold=detection_threshold)
         
         print("\n" + "="*60)
         print("DETECTION RESULTS")

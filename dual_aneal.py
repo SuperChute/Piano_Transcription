@@ -2,6 +2,8 @@ import librosa
 import numpy as np
 import matplotlib.pyplot as plt
 from music21 import stream, note, chord, midi, pitch
+from scipy.optimize import dual_annealing, minimize
+
 
 # --- Configuration and Utility Functions ---
 
@@ -489,29 +491,101 @@ def plot_trimming_comparison(original_signal, trimmed_signal, sr, note_name):
     plt.tight_layout()
     plt.show()
 
-def trim_mixed_signal(mixed_signal, sr=44100, skip_oscillations=30000, keep_oscillations=50000):
+
+
+def measure_error(w, A, b, l1=0.0, l2=0.0):
     """
-    Trim a mixed signal to focus on the steady-state portion.
-    Useful for removing initial transients from chord recordings.
-    
+    Mean squared error between A @ w and b, with optional L1/L2 regularization.
+    - L1 encourages sparsity (fewer notes)
+    - L2 encourages small weights (stability)
+    """
+    r = A @ w - b
+    mse = np.mean(r * r)
+    if l1 > 0:
+        mse += l1 * np.sum(np.abs(w))
+    if l2 > 0:
+        mse += l2 * np.sum(w * w)
+    return mse
+
+
+def detect_notes_dual_annealing(
+    A, b, note_names, 
+    threshold=0.25, 
+    bounds=None, 
+    l1=0.0, 
+    l2=0.0, 
+    seed=42, 
+    maxiter=1000, 
+    local_refine=True
+):
+    """
+    Use dual annealing to find weights w that minimize measure_error(w, A, b).
+
     Args:
-        mixed_signal: Mixed audio signal array
-        sr: Sample rate
-        skip_oscillations: Samples to skip after max amplitude
-        keep_oscillations: Samples to keep for analysis
-    
+        A: (num_bins x num_notes) basis matrix
+        b: (num_bins,) quantized magnitudes for the signal
+        note_names: list of note labels (len == num_notes)
+        threshold: min weight to count a detected note
+        bounds: list of (low, high) per-weight; defaults to nonnegative [0, 1.5]
+        l1, l2: regularization strengths (try small values like l1=1e-3, l2=1e-3)
+        seed: RNG seed for reproducibility
+        maxiter: annealing iterations (more = slower but better search)
+        local_refine: after annealing, do an L-BFGS-B polish within bounds
+
     Returns:
-        Trimmed signal array
+        detected_notes: list of (note_name, weight)
+        weights: np.ndarray of optimized weights
+        info: dict with optimizer diagnostics
     """
-    print("\n=== Trimming Mixed Signal ===")
-    trimmed = trim_to_fundamental(mixed_signal, sr, skip_oscillations, keep_oscillations)
-    return trimmed
+    n_notes = A.shape[1]
+    if bounds is None:
+        # Because you normalized each column of A and b to max 1,
+        # weights typically land in [0, ~1]. Allow a little headroom.
+        bounds = [(0.0, 1.5)] * n_notes
+
+    # Wrap objective for dual_annealing
+    def obj(w):
+        return measure_error(w, A, b, l1=l1, l2=l2)
+
+    # Global search
+    da_res = dual_annealing(obj, bounds=bounds, seed=seed, maxiter=maxiter)
+
+    w = da_res.x
+
+    # Optional local polish (often tightens the fit significantly)
+    if local_refine:
+        lb = np.array([lo for lo, hi in bounds])
+        ub = np.array([hi for lo, hi in bounds])
+        res_local = minimize(
+            obj, w, method="L-BFGS-B", bounds=list(zip(lb, ub))
+        )
+        if res_local.success:
+            w = res_local.x
+
+    # Enforce bounds numerically
+    w = np.clip(w, [lo for lo, _ in bounds], [hi for _, hi in bounds])
+
+    # Collect detections
+    weights = np.abs(w)
+    detected_notes = [(n, float(wi)) for n, wi in zip(note_names, weights) if wi >= threshold]
+
+    # Sort by weight (desc) for nice printing
+    detected_notes.sort(key=lambda x: x[1], reverse=True)
+
+    info = {
+        "da_fun": da_res.fun,
+        "da_nfev": da_res.nfev,
+        "da_message": da_res.message,
+    }
+    return detected_notes, weights, info
+
+
 # --- Main Execution ---
 
 if __name__ == "__main__":
     # Configuration
-    note_range = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4' ]
-    num_harmonics = 15
+    note_range = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5', 'D5', 'E5', 'F5', 'G5', 'A5', 'B5', 'C6']
+    num_harmonics = 5
     bin_width = 10.0  # Hz
     sr = 44100
     detection_threshold = 0.25  # Adjust this to tune sensitivity
@@ -581,9 +655,9 @@ if __name__ == "__main__":
         "pure_notes/F4_real.m4a",
         "pure_notes/G4_real.m4a",
         "pure_notes/A4_real.m4a",
-        "pure_notes/B4_real2.m4a",
-        "pure_notes/C5_real.m4a",
-        "pure_notes/D5_real2.m4a",
+        "pure_notes/B4_real.m4a",
+        "pure_notes/C5_real2.m4a",
+        "pure_notes/D5_real.m4a",
         "pure_notes/E5_real.m4a",
         "pure_notes/F5_real.m4a",
         "pure_notes/G5_real.m4a",
@@ -616,7 +690,7 @@ if __name__ == "__main__":
         #"pure_notes/G4_real.m4a",
         #"pure_notes/C4_E4_G4_real.m4a",
 
-        #"pure_notes/c4_e4_g4_chord.mp3",
+        #"pure_notes/c4_e4_g4_chord.mp3"
         #"pure_notes/c4.mp3",
         #"pure_notes/e4.mp3",
         #"pure_notes/f4.mp3",
@@ -631,21 +705,14 @@ if __name__ == "__main__":
         #"pure_notes/e4.mp3",
         #"pure_notes/g4.mp3",
         #"pure_notes/b4.mp3",
-        "pure_notes/D4_E4_G4_B4_real2.m4a",
-       #"pure_notes/F4_A4_E5_real.m4a",
-       #"pure_notes/C4_E4_G4_C5_real2.m4a",
+        #"pure_notes/D4_E4_G4_B4_real2.m4a",
+        "pure_notes/F4_A4_E5_real.m4a",
         ]
         
         print(f"\nNotes Inputted: {[f.split('/')[-1].split('.')[0].upper() for f in test_files]}")
         
         # Load and mix test signal
         mixed_signal, _ = load_and_mix_signals(test_files, sr=sr)
-        mixed_signal = trim_mixed_signal(
-        mixed_signal, 
-        sr=sr,
-        skip_oscillations=15000,  # Use same params as basis matrix
-        keep_oscillations=80000 
-        )
         # Save the mixed signal as MP3 for comparison
         save_mixed_signal_as_mp3(mixed_signal, sr, output_file='mixed_test_output.mp3')
         plot_mixed_signal(mixed_signal, sr, 
@@ -666,7 +733,30 @@ if __name__ == "__main__":
         
         # Visualize quantized mixed signal
         plot_quantized_spectrum(bin_centers, b, title="Quantized Mixed Signal (Input)")
-        
+
+        print("\n=== Dual Annealing Detection ===")
+
+        detected_da, w_da, info_da = detect_notes_dual_annealing(
+            A, b, note_names,
+            threshold=detection_threshold,
+            bounds=None,     # or e.g. [(0.0, 1.2)] * A.shape[1]
+            l1=1e-3,         # small sparsity; try 0.0, 1e-4, 1e-3
+            l2=1e-3,         # small ridge; try 0.0, 1e-4, 1e-3
+            seed=42,
+            maxiter=800,
+            local_refine=True
+        )
+
+        print(f"Dual annealing objective: {info_da['da_fun']:.6f} (evaluations: {info_da['da_nfev']})")
+        if detected_da:
+            print(f"Detected {len(detected_da)} note(s) via annealing:")
+            for n, wt in detected_da:
+                print(f"  ✓ {n}: {wt:.4f}")
+        else:
+            print("✗ No notes detected (consider lowering threshold or bounds)")
+
+        plot_detection_results(note_names, w_da, detected_da, detection_threshold)
+        """
         # Solve notes
         detected_notes, x = detect_notes(A, b, note_names, threshold=detection_threshold)
         
@@ -683,9 +773,11 @@ if __name__ == "__main__":
         # Visualize results
         plot_detection_results(note_names, x, detected_notes, detection_threshold) 
         
+        
         # Create MIDI output
         if detected_notes:
             create_midi_from_detected_notes(detected_notes, output_file='detected_chord.mid')
+            """
         
     except FileNotFoundError as e:
         print(f"\nERROR: File not found - {e}")
