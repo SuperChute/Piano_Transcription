@@ -1,8 +1,7 @@
 import librosa
 import numpy as np
 import matplotlib.pyplot as plt
-from music21 import stream, note, chord, midi, pitch 
-from scipy.optimize import nnls
+from music21 import stream, note, chord, midi, pitch
 
 # --- Configuration and Utility Functions ---
 
@@ -312,35 +311,7 @@ def detect_notes(A, b, note_names, threshold=0.3):
         if weight >= threshold:
             detected_notes.append((note, weight))
     
-    return detected_notes, weights 
-
-"""
-def detect_notes(A, b, note_names, threshold=0.3):
-
-    print("\n=== Solving Ax = b ===")
-    print(f"A shape: {A.shape}")
-    print(f"b shape: {b.shape}")
-    
-    # Find weights such that A*weights ≈ b using non-negative least squares
-    # This ensures all weights are >= 0, which makes physical sense for note amplitudes
-    weights, residual = nnls(A, b)
-    
-    # Print Results
-    print(f"\nSolution (weights):")
-    for note, weight in zip(note_names, weights):
-        print(f"  {note}: {weight:.4f}")
-    
-    print(f"\nResidual error: {residual:.6f}")
-    
-    # Determine which notes are "present"
-    # Only notes with weight >= threshold are considered detected
-    detected_notes = []
-    for note, weight in zip(note_names, weights):
-        if weight >= threshold:
-            detected_notes.append((note, weight))
-    
     return detected_notes, weights
-"""
 
 
 def create_midi_from_detected_notes(detected_notes, output_file='detected_chord.mid', duration=2.0):
@@ -703,13 +674,13 @@ if __name__ == "__main__":
         #"pure_notes/G4_real.m4a",
         #"pure_notes/C4_E4_G4_real.m4a",
 
-        "pure_notes/c4_e4_g4_chord.mp3",
+        #"pure_notes/c4_e4_g4_chord.mp3",
         #"pure_notes/c5.mp3",
-        #"pure_notes/g4.mp3",
+        "pure_notes/g4.mp3",
         #"pure_notes/f4.mp3",
         #"pure_notes/g4.mp3",
-        #"pure_notes/ab3.mp3",
-        #"pure_notes/b4.mp3",
+        "pure_notes/ab3.mp3",
+        "pure_notes/b4.mp3",
         #"pure_notes/c5.mp3",
         #"pure_notes/d5.mp3",
         #"pure_notes/e5.mp3",
@@ -741,7 +712,7 @@ if __name__ == "__main__":
         mixed_signal, 
         sr=sr,
         skip_oscillations=10000,  # Use same params as basis matrix
-        keep_oscillations=10000
+        keep_oscillations=20000
         )
         # Save the mixed signal as MP3 for comparison
         save_mixed_signal_as_mp3(mixed_signal, sr, output_file='mixed_test_output.mp3')

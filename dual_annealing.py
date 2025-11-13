@@ -533,14 +533,14 @@ def trim_mixed_signal(mixed_signal, sr=44100, skip_oscillations=30000, keep_osci
 if __name__ == "__main__":
     # Configuration
     note_range = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4' ]
-    num_harmonics = 20
-    bin_width = 20.0  # Hz
+    num_harmonics = 10
+    bin_width = 15.0  # Hz
     sr = 44100
     detection_threshold = 0.2  # Adjust this to tune sensitivity
     
     # Trimming parameters
     use_trimming = True  # Set to False to disable trimming
-    skip_oscillations = 30000  # Samples to skip after max amplitude
+    skip_oscillations = 5000  # Samples to skip after max amplitude
     keep_oscillations = 50000  # Samples to keep for analysis
     
     # Create frequency bins
@@ -597,20 +597,21 @@ if __name__ == "__main__":
         "soundwave/C5.webm",
     """ 
     note_files = [
-        "pure_notes/C4_real.m4a",
-        "pure_notes/D4_real.m4a",
-        "pure_notes/E4_real.m4a",
-        "pure_notes/F4_real.m4a",
-        "pure_notes/G4_real.m4a",
-        "pure_notes/A4_real.m4a",
-        "pure_notes/B4_real2.m4a",
-        "pure_notes/C5_real.m4a",
-        "pure_notes/D5_real2.m4a",
-        "pure_notes/E5_real.m4a",
-        "pure_notes/F5_real.m4a",
-        "pure_notes/G5_real.m4a",
-        "pure_notes/A5_real.m4a",
-        "pure_notes/B5_real.m4a",
+        "pure_notes/c4.mp3",
+        "pure_notes/d4.mp3",
+        "pure_notes/e4.mp3",
+        "pure_notes/f4.mp3",
+        "pure_notes/g4.mp3",
+        "pure_notes/a4.mp3",
+        "pure_notes/b4.mp3",
+        "pure_notes/c5.mp3",
+        "pure_notes/d5.mp3",
+        "pure_notes/e5.mp3",
+        "pure_notes/f5.mp3",
+        "pure_notes/g5.mp3",
+        "pure_notes/a5.mp3",
+        "pure_notes/b5.mp3",
+        "pure_notes/c6.mp3",
     ]
     try:
         A, note_names = build_basis_matrix(note_files, bin_centers, sr=sr, bin_width=bin_width,
@@ -656,7 +657,7 @@ if __name__ == "__main__":
         #"pure_notes/b4.mp3",
         #"pure_notes/D4_E4_G4_B4_real2.m4a",
         #"pure_notes/D4_E4_A4_B4.m4a",
-        "pure_notes/C4_E4_G4_C5_real3.m4a",
+        #"pure_notes/C4_E4_G4_C5_real.m4a",
         #"pure_notes/F4_A4_E5_real.m4a",
         #"pure_notes/g4.mp3",
         #"pure_notes/a4.mp3",
@@ -664,6 +665,14 @@ if __name__ == "__main__":
         #"pure_notes/c5.mp3",
         #"pure_notes/d5.mp3",
         #"pure_notes/e5.mp3",
+                "pure_notes/e4.mp3",
+        #"pure_notes/f4.mp3",
+        #"pure_notes/g4.mp3",
+        "pure_notes/a4.mp3",
+        "pure_notes/b4.mp3",
+        "pure_notes/c5.mp3",
+        #"pure_notes/d5.mp3",
+        "pure_notes/e5.mp3",
         ]
         
         print(f"\nNotes Inputted: {[f.split('/')[-1].split('.')[0].upper() for f in test_files]}")
@@ -673,8 +682,8 @@ if __name__ == "__main__":
         mixed_signal = trim_mixed_signal(
         mixed_signal, 
         sr=sr,
-        skip_oscillations=15000,  # Use same params as basis matrix
-        keep_oscillations=80000
+        skip_oscillations=10000,  # Use same params as basis matrix
+        keep_oscillations=10000
         )
         # Save the mixed signal as MP3 for comparison
         save_mixed_signal_as_mp3(mixed_signal, sr, output_file='mixed_test_output.mp3')
