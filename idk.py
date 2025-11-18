@@ -563,8 +563,8 @@ def chromatic_range(start='C3', end='C6', use_flats=True):
 if __name__ == "__main__":
     # Configuration
     #note_range = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4' ]
-    note_range = chromatic_range('C3', 'C6', use_flats=True)
-    num_harmonics = 2 
+    note_range = chromatic_range('C1', 'C6', use_flats=True)
+    num_harmonics = 4 
     bin_width = 10.0  # Hz
     sr = 44100
     detection_threshold = 0.35  # Adjust this to tune sensitivity
@@ -634,46 +634,39 @@ if __name__ == "__main__":
         "soundwave/B5.webm",
         "soundwave/C6.webm",
     """ 
-    note_files = [
-        "pure_notes/c3.mp3", 
-        "pure_notes/db3.mp3", 
-        "pure_notes/d3.mp3", 
-        "pure_notes/eb3.mp3", 
-        "pure_notes/e3.mp3", 
-        "pure_notes/f3.mp3", 
-        "pure_notes/gb3.mp3", 
-        "pure_notes/g3.mp3", 
-        "pure_notes/ab3.mp3", 
-        "pure_notes/a3.mp3", 
-        "pure_notes/bb3.mp3", 
-        "pure_notes/b3.mp3", 
+    note_files = [ 
 
-        "pure_notes/c4.mp3", 
-        "pure_notes/db4.mp3", 
-        "pure_notes/d4.mp3", 
-        "pure_notes/eb4.mp3", 
-        "pure_notes/e4.mp3",
-        "pure_notes/f4.mp3", 
-        "pure_notes/gb4.mp3", 
-        "pure_notes/g4.mp3", 
-        "pure_notes/ab4.mp3", 
-        "pure_notes/a4.mp3",
-        "pure_notes/bb4.mp3", 
-        "pure_notes/b4.mp3", 
+        "pure_notes/c1.mp3", "pure_notes/db1.mp3", "pure_notes/d1.mp3", 
+        "pure_notes/eb1.mp3", "pure_notes/e1.mp3", "pure_notes/f1.mp3", 
+        "pure_notes/gb1.mp3", "pure_notes/g1.mp3", "pure_notes/ab1.mp3", 
+        "pure_notes/a1.mp3", "pure_notes/bb1.mp3", "pure_notes/b1.mp3",
 
-        "pure_notes/c5.mp3",
-        "pure_notes/db5.mp3", 
-        "pure_notes/d5.mp3",
-        "pure_notes/eb5.mp3", 
-        "pure_notes/e5.mp3",
-        "pure_notes/f5.mp3",
-        "pure_notes/gb5.mp3", 
-        "pure_notes/g5.mp3",
-        "pure_notes/ab5.mp3", 
-        "pure_notes/a5.mp3",
-        "pure_notes/bb5.mp3", 
-        "pure_notes/b5.mp3",
-        "pure_notes/c6.mp3",
+        "pure_notes/c2.mp3", "pure_notes/db2.mp3", "pure_notes/d2.mp3", 
+        "pure_notes/eb2.mp3", "pure_notes/e2.mp3", "pure_notes/f2.mp3", 
+        "pure_notes/gb2.mp3", "pure_notes/g2.mp3", "pure_notes/ab2.mp3", 
+        "pure_notes/a2.mp3", "pure_notes/bb2.mp3", "pure_notes/b2.mp3",
+
+        "pure_notes/c3.mp3", "pure_notes/db3.mp3", "pure_notes/d3.mp3", 
+        "pure_notes/eb3.mp3", "pure_notes/e3.mp3", "pure_notes/f3.mp3", 
+        "pure_notes/gb3.mp3", "pure_notes/g3.mp3", "pure_notes/ab3.mp3", 
+        "pure_notes/a3.mp3", "pure_notes/bb3.mp3", "pure_notes/b3.mp3",
+
+        "pure_notes/c4.mp3", "pure_notes/db4.mp3", "pure_notes/d4.mp3", 
+        "pure_notes/eb4.mp3", "pure_notes/e4.mp3","pure_notes/f4.mp3", 
+        "pure_notes/gb4.mp3", "pure_notes/g4.mp3", "pure_notes/ab4.mp3", 
+        "pure_notes/a4.mp3", "pure_notes/bb4.mp3", "pure_notes/b4.mp3",
+
+        "pure_notes/c5.mp3", "pure_notes/db5.mp3", "pure_notes/d5.mp3",
+        "pure_notes/eb5.mp3", "pure_notes/e5.mp3","pure_notes/f5.mp3",
+        "pure_notes/gb5.mp3", "pure_notes/g5.mp3","pure_notes/ab5.mp3", 
+        "pure_notes/a5.mp3","pure_notes/bb5.mp3", "pure_notes/b5.mp3", 
+
+        "pure_notes/c6.mp3", "pure_notes/db6.mp3", "pure_notes/d6.mp3",
+        "pure_notes/eb6.mp3", "pure_notes/e6.mp3","pure_notes/f6.mp3",
+        "pure_notes/gb6.mp3", "pure_notes/g6.mp3","pure_notes/ab6.mp3", 
+        "pure_notes/a6.mp3","pure_notes/bb6.mp3", "pure_notes/b6.mp3",  
+
+        "pure_notes/c7.mp3",
     ]
     try:
         A, note_names = build_basis_matrix(note_files, bin_centers, sr=sr, bin_width=bin_width,
@@ -703,10 +696,10 @@ if __name__ == "__main__":
         #"pure_notes/G4_real.m4a",
         #"pure_notes/C4_E4_G4_real.m4a",
 
-        "pure_notes/c4_e4_g4_chord.mp3",
+        #"pure_notes/c4_e4_g4_chord.mp3",
         #"pure_notes/c5.mp3",
         #"pure_notes/g4.mp3",
-        #"pure_notes/f4.mp3",
+        "pure_notes/b1.mp3",
         #"pure_notes/g4.mp3",
         #"pure_notes/ab3.mp3",
         #"pure_notes/b4.mp3",

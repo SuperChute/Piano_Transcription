@@ -144,8 +144,12 @@ def build_basis_matrix(note_files, bin_centers, sr=44100, bin_width=10.0,
 
 # --- NNLS Solver ---
 
-def detect_notes_nnls(A, b, note_names, threshold=0.3, top_k=None):
-    """Solve Ax = b using NNLS (Non-Negative Least Squares) to detect notes."""
+def detect_notes_nnls(A, b, note_names, threshold=0.24):
+    """
+    Solve Ax = b using NNLS to detect all notes above threshold.
+    
+    """
+
     weights, residual = nnls(A, b)
     
     print(f"\nSolution (weights):")
@@ -155,16 +159,13 @@ def detect_notes_nnls(A, b, note_names, threshold=0.3, top_k=None):
     
     print(f"\nResidual error: {residual:.6f}")
     
-    order = np.argsort(weights)[::-1]
-    
     detected_notes = []
-    for idx in order:
-        if weights[idx] >= threshold:
-            detected_notes.append((note_names[idx], (weights[idx])))
-            if top_k is not None and len(detected_notes) == top_k:
-                break
-        else:
-            break
+    for note, weight in zip(note_names, weights):
+        if weight >= threshold:
+            detected_notes.append((note, weight))
+    
+    # Sort by weight (highest first)
+    detected_notes.sort(key=lambda x: x[1], reverse=True)
     
     return detected_notes, weights
 
@@ -172,7 +173,10 @@ def detect_notes_nnls(A, b, note_names, threshold=0.3, top_k=None):
 # --- Onset Detection ---
 
 def detect_onsets(signal, sr=44100, hop_length=512):
-    """Detect note onsets using librosa's built-in onset detection."""
+    """
+    Detect note onsets using librosa's built-in onset detection.
+    
+    """
     onset_frames = librosa.onset.onset_detect(
         y=signal,
         sr=sr,
@@ -190,67 +194,62 @@ def detect_onsets(signal, sr=44100, hop_length=512):
     
     return onset_samples, onset_times
 
+# --- Segment Audio ---
 
 def segment_and_detect_notes(signal, sr, onset_samples, A, note_names, bin_centers,
-                             bin_width=10.0, threshold=0.35,
-                             min_segment_samples=2048,
-                             pre_roll_ms=25, analysis_window_ms=120,
-                             top_k=None, polyphonic_threshold=0.25):
+                             bin_width=10.0, threshold=0.24,
+                             skip_ms=25, analysis_window_ms=120):
     """
     Segment audio by onsets and detect notes with NNLS.
     Supports both monophonic (top_k=1) and polyphonic (top_k=None) detection.
     
     Args:
         polyphonic_threshold: Lower threshold for polyphonic detection
+
     """
     print("\n=== Segmenting and Detecting Notes ===")
-    print(f"Mode: {'MONOPHONIC (top note only)' if top_k == 1 else 'POLYPHONIC (all notes)'}")
     
     def ms_to_samples(ms):
         return int((ms / 1000.0) * sr)
     
-    pre_samples = ms_to_samples(pre_roll_ms)
+    skip_samples = ms_to_samples(skip_ms)
     window_samples = ms_to_samples(analysis_window_ms)
-    NFFT = 8192
+    FFTLENGTH = ms_to_samples(analysis_window_ms)  
     
     segment_boundaries = np.append(onset_samples, len(signal))
     detected_timeline = []
     
     for i in range(len(segment_boundaries) - 1):
         onset_idx = segment_boundaries[i] # Check the i onset
-        next_onset_idx = segment_boundaries[i + 1] #Check the i + 1 onset
+        next_onset_idx = segment_boundaries[i + 1] # Check the i + 1 onset
         segment_duration = next_onset_idx - onset_idx # Calculates the amount of oscillations from onset i to i + 1
         
         print(f"\n--- Segment {i+1} ---")
         print(f"  Onset at: {onset_idx} ({onset_idx/sr:.3f}s)")
         
-        if segment_duration < min_segment_samples:
-            print(f"  ⚠️  Segment too short ({segment_duration} samples), skipping")
-            continue
-        
-        start_ana = max(0, onset_idx - pre_samples) #Start Point
-        end_ana = min(len(signal), start_ana + window_samples) #End Point
-        segment_trimmed = signal[start_ana:end_ana] #Analyze the trimmed segment from the signal from start_ana to end_ana
+        start_ana = onset_idx + skip_samples # Skip number of samples after the onset
+        end_ana = start_ana + window_samples # End of onset
+        segment_trimmed = signal[start_ana:end_ana] #Analyze the trimmed segment 
         
         print(f"  Analysis window: {start_ana} to {end_ana} ({len(segment_trimmed)} samples, {len(segment_trimmed)/sr*1000:.1f}ms)")
-        
-        if len(segment_trimmed) < NFFT:
-            segment_padded = np.pad(segment_trimmed, (0, NFFT - len(segment_trimmed)))
-        else:
-            segment_padded = segment_trimmed[:NFFT]
-        
-        segment_windowed = segment_padded * np.hanning(NFFT)
+
+        # Padding        
+        #padding_needed = lengthFFT - len(segment_trimmed)
+        #padding_needed = max(0, padding_needed)  # Cantt be negative!
+        #segment_padded = np.pad(segment_trimmed, (0, padding_needed))
+        #segment_padded = segment_padded[:lengthFFT]  # Truncate 
+
+        segment_windowed = segment_trimmed * np.hanning(FFTLENGTH)
         
         ft = np.fft.rfft(segment_windowed)
         magnitude = np.abs(ft)
-        freqs = np.fft.rfftfreq(NFFT, 1/sr)
+        freqs = np.fft.rfftfreq(FFTLENGTH, 1/sr)
         
         b = quantize_fft_to_bins(freqs, magnitude, bin_centers, bin_width)
         b = b / np.max(b) if np.max(b) > 0 else b
         
-        # Use polyphonic_threshold for polyphonic detection
-        detection_threshold = threshold if top_k == 1 else polyphonic_threshold
-        detected_notes, weights = detect_notes_nnls(A, b, note_names, detection_threshold, top_k=top_k)
+        # Detect notes
+        detected_notes, weights = detect_notes_nnls(A, b, note_names, threshold)        
         
         start_time = onset_idx / sr
         duration = segment_duration / sr
@@ -262,88 +261,88 @@ def segment_and_detect_notes(signal, sr, onset_samples, A, note_names, bin_cente
                     'start_time': start_time,
                     'duration': duration,
                     'weight': weight,
-                    'velocity': int(min(weight * 127, 127))
+                    'velocity': int(min(weight * 127, 127)) # Volume is dependent on the weight
                 })
-                print(f"  ✅ Detected: {note} (weight: {weight:.3f})")
+                print(f"  Detected: {note} (weight: {weight:.3f})")
         else:
-            print(f"  ❌ No notes detected")
+            print(f"  No notes detected")
     
-    return detected_timeline
+    return detected_timeline 
 
-
-def compute_tuning_compensation(signal, sr):
-    """Compute global tuning offset in cents and return tuning ratio."""
-    print("\n=== Computing Global Tuning ===")
-    
-    chroma = librosa.feature.chroma_cqt(y=signal, sr=sr)
-    tuning_cents = librosa.pitch_tuning(chroma)
-    tuning_ratio = 2.0 ** (tuning_cents / 1200.0)
-    
-    print(f"Detected tuning: {tuning_cents:+.1f} cents")
-    print(f"Tuning ratio: {tuning_ratio:.6f}")
-    
-    return tuning_ratio, tuning_cents
-
+# --- Create MIDI ---
 
 def create_midi_sequence(timeline, signal, sr, output_file='transcription.mid', fixed_bpm=None):
-    """Create MIDI file with robust tempo detection or fixed BPM."""
+    """
+    Create MIDI file with robust tempo detection or fixed BPM.
+    
+    Args:
+        timeline: List of detected notes with start_time, duration, note name, velocity
+        signal: Original audio signal (used for tempo detection)
+        sr: Sample rate
+        output_file: Output MIDI filename
+        fixed_bpm: Optional fixed tempo (if None, auto-detect from audio)
+    """
     if not timeline:
         print("No notes in timeline to create MIDI.")
         return
     
     if fixed_bpm is not None:
+        # Use fixed bpm
         bpm = fixed_bpm
-        print(f"\n🎵 Using fixed tempo: {bpm} BPM")
+        print(f"\nUsing fixed tempo: {bpm} BPM")
     else:
+        # Auto-detect tempo from the audio file
         oenv = librosa.onset.onset_strength(y=signal, sr=sr)
         tempo_est, _ = librosa.beat.beat_track(onset_envelope=oenv, sr=sr)
         bpm = int(round(float(tempo_est[0])))
-        print(f"\n🎵 Detected tempo: {bpm} BPM")
+        print(f"\nDetected tempo: {bpm} BPM")
     
-    s = stream.Score()
-    part = stream.Part()
-    part.append(tempo.MetronomeMark(number=bpm))
+    s = stream.Score() # Create a container for Score (The music sheet)
+    part = stream.Part() # Create a part (like a piano track)
+    part.append(tempo.MetronomeMark(number=bpm)) # Set the tempo marking
     
     seconds_per_quarter = 60.0 / bpm
     
-    # Group simultaneous notes into chords
+    # Sort Notes by their starting times in chronological order
     timeline_sorted = sorted(timeline, key=lambda x: x['start_time'])
     
-    i = 0
+    # Loop through all detected notes and group ones that start at the same time
+    i = 0 
     while i < len(timeline_sorted):
         current_time = timeline_sorted[i]['start_time']
         current_notes = []
         
-        # Collect all notes that start at approximately the same time
-        while i < len(timeline_sorted) and abs(timeline_sorted[i]['start_time'] - current_time) < 0.01:
+        # Collect all notes that start within 0.01 seconds of each other
+        while i < len(timeline_sorted) and abs(timeline_sorted[i]['start_time'] - current_time) < 0.05:
             current_notes.append(timeline_sorted[i])
             i += 1
         
         try:
+            # Create Either Single Note or Chord
             if len(current_notes) == 1:
                 # Single note
-                n = note.Note(current_notes[0]['note'])
-                n.offset = current_notes[0]['start_time'] / seconds_per_quarter
-                n.quarterLength = current_notes[0]['duration'] / seconds_per_quarter
-                n.volume.velocity = current_notes[0]['velocity']
-                part.append(n)
+                n = note.Note(current_notes[0]['note']) # Create Note object
+                n.offset = current_notes[0]['start_time'] / seconds_per_quarter # Convert start time to quarter notes
+                n.quarterLength = current_notes[0]['duration'] / seconds_per_quarter # Convert duration from seconds to quarter notes
+                n.volume.velocity = current_notes[0]['velocity'] # Set volume 0-127, where 127 is loudest)
+                part.append(n) # Add note to the part object
             else:
                 # Chord
-                midi_pitches = [pitch.Pitch(event['note']).midi for event in current_notes]
-                c = chord.Chord(midi_pitches)
-                c.offset = current_time / seconds_per_quarter
-                avg_duration = np.mean([event['duration'] for event in current_notes])
+                midi_pitches = [pitch.Pitch(event['note']).midi for event in current_notes] # Convert note names to MIDI pitch numbers
+                c = chord.Chord(midi_pitches)  # Create chord object from MIDI pitches
+                c.offset = current_time / seconds_per_quarter # Convert start time to quarter notes 
+                avg_duration = np.mean([event['duration'] for event in current_notes]) # Average the durations of all notes in the chord
                 c.quarterLength = avg_duration / seconds_per_quarter
-                avg_velocity = int(np.mean([event['velocity'] for event in current_notes]))
+                avg_velocity = int(np.mean([event['velocity'] for event in current_notes])) # Average the velocities of all notes in the chord
                 c.volume.velocity = avg_velocity
-                part.append(c)
+                part.append(c)  # Add chord to the part
         except Exception as e:
             print(f"Warning: Could not add note(s): {e}")
     
-    s.append(part)
-    s.write('midi', fp=output_file)
+    s.append(part) # Add the part to the score
+    s.write('midi', fp=output_file) # Write the score as a MIDI file
     
-    print(f"✅ MIDI sequence saved: {output_file}")
+    print(f"MIDI sequence saved: {output_file}")
     print(f"   Total events: {len(timeline)}")
     if timeline:
         print(f"   Duration: {timeline[-1]['start_time'] + timeline[-1]['duration']:.2f} seconds")
@@ -352,7 +351,10 @@ def create_midi_sequence(timeline, signal, sr, output_file='transcription.mid', 
 # --- Visualization ---
 
 def plot_basis_matrix(A, note_names, bin_centers):
-    """Visualize the basis matrix as a heatmap."""
+    """
+    Visualize the basis matrix as a heatmap.
+    
+    """
     plt.figure(figsize=(10, 8))
     plt.imshow(A, aspect='auto', cmap='viridis', interpolation='nearest')
     plt.colorbar(label='Normalized Magnitude')
@@ -367,7 +369,10 @@ def plot_basis_matrix(A, note_names, bin_centers):
 
 
 def plot_mixed_signal(mixed_signal, sr, title="Audio Signal"):
-    """Plot the time-domain waveform."""
+    """
+    Plot the time-domain waveform.
+    
+    """
     time = np.arange(len(mixed_signal)) / sr
     
     plt.figure(figsize=(14, 5))
@@ -381,7 +386,10 @@ def plot_mixed_signal(mixed_signal, sr, title="Audio Signal"):
 
 
 def plot_onsets_on_waveform(signal, sr, onset_samples, title="Detected Onsets"):
-    """Visualize onsets overlaid on the audio waveform."""
+    """
+    Visualize onsets overlaid on the audio waveform.
+    
+    """
     time = np.arange(len(signal)) / sr
     onset_times = onset_samples / sr
     
@@ -406,7 +414,10 @@ def plot_onsets_on_waveform(signal, sr, onset_samples, title="Detected Onsets"):
 
 
 def plot_trimming_comparison(original_signal, trimmed_signal, sr, note_name):
-    """Visualize the effect of trimming on the audio signal."""
+    """
+    Visualize the effect of trimming on the audio signal.
+    
+    """
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(16, 10))
     
     max_idx = np.argmax(np.abs(original_signal))
@@ -446,20 +457,18 @@ def plot_trimming_comparison(original_signal, trimmed_signal, sr, note_name):
 
 if __name__ == "__main__":
     # Configuration
-    note_range = chromatic_range('C2', 'C7', use_flats=True)
-    num_harmonics = 8
-    bin_width = 7.5
+    note_range = chromatic_range('C1', 'C7', use_flats=True)
+    num_harmonics = 5
+    bin_width = 10
     sr = 44100
     
     # Trimming parameters for basis matrix
     use_trimming = True
     skip_oscillations = 0
     keep_oscillations = 20000
-    
-    # Detection parameters
-    MONOPHONIC_MODE = False  # Set to True for melody, False for chords
-    monophonic_threshold = 0.35
-    polyphonic_threshold = 0.24
+
+    # Threshold
+    threshold = 0.24
     
     print("=== Creating Frequency Bins ===")
     bin_centers = create_frequency_bins(note_range, num_harmonics=num_harmonics)
@@ -467,7 +476,7 @@ if __name__ == "__main__":
     print(f"Frequency range: {bin_centers[0]:.2f} Hz to {bin_centers[-1]:.2f} Hz") 
 
     """ 
-            #"pure_notes/c1.mp3", "pure_notes/db1.mp3", "pure_notes/d1.mp3", 
+        #"pure_notes/c1.mp3", "pure_notes/db1.mp3", "pure_notes/d1.mp3", 
         #"pure_notes/eb1.mp3", "pure_notes/e1.mp3", "pure_notes/f1.mp3", 
         #"pure_notes/gb1.mp3", "pure_notes/g1.mp3", "pure_notes/ab1.mp3", 
         #"pure_notes/a1.mp3", "pure_notes/bb1.mp3", "pure_notes/b1.mp3",
@@ -502,8 +511,14 @@ if __name__ == "__main__":
     """
     
     # Build basis matrix
-    note_files = [
-        "pure_notes/c2.mp3", "pure_notes/db2.mp3", "pure_notes/d2.mp3", 
+    note_files = [ 
+
+        "soundwave/C1.webm", "soundwave/DB1.webm", "soundwave/D1.webm", 
+        "soundwave/EB1.webm", "soundwave/E1.webm", "soundwave/F1.webm", 
+        "soundwave/GB1.webm", "soundwave/G1.webm", "soundwave/AB1.webm",  
+        "soundwave/A1.webm", "soundwave/BB1.webm", "soundwave/B1.webm", 
+
+        "soundwave/C2.webm", "pure_notes/db2.mp3", "pure_notes/d2.mp3", 
         "pure_notes/eb2.mp3", "pure_notes/e2.mp3", "pure_notes/f2.mp3", 
         "pure_notes/gb2.mp3", "pure_notes/g2.mp3", "pure_notes/ab2.mp3", 
         "pure_notes/a2.mp3", "pure_notes/bb2.mp3", "pure_notes/b2.mp3",
@@ -546,11 +561,10 @@ if __name__ == "__main__":
         
         # Load test audio
         print("\n" + "="*60)
-        print("=== UNIFIED NOTE DETECTION ===")
-        print(f"Mode: {'MONOPHONIC' if MONOPHONIC_MODE else 'POLYPHONIC'}")
+        print("=== NOTE DETECTION ===")
         print("="*60)
         
-        test_audio_file = "sequential/hot_cross_buns2.mp3" 
+        test_audio_file = "sequential/vague_hope.mp3" 
 
         print(f"\nLoading: {test_audio_file}")
         signal, _ = librosa.load(test_audio_file, sr=sr, mono=True)
@@ -558,14 +572,10 @@ if __name__ == "__main__":
         
         plot_mixed_signal(signal, sr, title="Input Audio")
         
-        # Optional: Tuning compensation
-        #tuning_ratio, tuning_cents = compute_tuning_compensation(signal, sr)
-        #bin_centers_tuned = bin_centers * tuning_ratio
-        
         # Detect onsets
         onset_samples, onset_times = detect_onsets(
             signal, sr=sr, 
-            hop_length=512, # Can be 256, 128
+            hop_length=256, # Can be 256, 128
         )
         
         #plot_onsets_on_waveform(signal, sr, onset_samples, 
@@ -580,21 +590,18 @@ if __name__ == "__main__":
             note_names=note_names,
             bin_centers=bin_centers,
             bin_width=bin_width,
-            threshold=monophonic_threshold,
-            min_segment_samples=(1024 * 0), # Can be 1024, 256, 128
-            pre_roll_ms=-25,
-            analysis_window_ms=200, #Window of analysis to capture after an onset in ms
-            top_k=None if MONOPHONIC_MODE else None,
-            polyphonic_threshold=polyphonic_threshold
+            threshold=threshold,
+            skip_ms=25,# Number of Miliseconds to skip after detecting an onset
+            analysis_window_ms=185.8596371882086, #Window of analysis to capture after an onset in ms
         )
-         
+        
         # Display results
         print("\n" + "="*60)
         print("TRANSCRIPTION RESULTS")
         print("="*60)
         
         if timeline:
-            print(f"\nDetected {len(timeline)} note events:")
+            print(f"\n Detected {len(timeline)} note events:")
             for i, event in enumerate(timeline, 1):
                 print(f"  {i}. {event['note']:4s} @ {event['start_time']:.3f}s "
                       f"(duration: {event['duration']:.3f}s, weight: {event['weight']:.3f})")
@@ -604,7 +611,7 @@ if __name__ == "__main__":
         # Create MIDI
         if timeline:
             create_midi_sequence(timeline, signal, sr, 
-                              output_file='unified_transcription.mid',
+                              output_file='transcription.mid',
                               fixed_bpm=None)
         
     except FileNotFoundError as e:

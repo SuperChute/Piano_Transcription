@@ -217,9 +217,9 @@ def segment_and_detect_notes(signal, sr, onset_samples, A, note_names, bin_cente
     detected_timeline = []
     
     for i in range(len(segment_boundaries) - 1):
-        onset_idx = segment_boundaries[i] # Check the i onset
-        next_onset_idx = segment_boundaries[i + 1] #Check the i + 1 onset
-        segment_duration = next_onset_idx - onset_idx # Calculates the amount of oscillations from onset i to i + 1
+        onset_idx = segment_boundaries[i]
+        next_onset_idx = segment_boundaries[i + 1]
+        segment_duration = next_onset_idx - onset_idx
         
         print(f"\n--- Segment {i+1} ---")
         print(f"  Onset at: {onset_idx} ({onset_idx/sr:.3f}s)")
@@ -228,9 +228,9 @@ def segment_and_detect_notes(signal, sr, onset_samples, A, note_names, bin_cente
             print(f"  ⚠️  Segment too short ({segment_duration} samples), skipping")
             continue
         
-        start_ana = max(0, onset_idx - pre_samples) #Start Point
-        end_ana = min(len(signal), start_ana + window_samples) #End Point
-        segment_trimmed = signal[start_ana:end_ana] #Analyze the trimmed segment from the signal from start_ana to end_ana
+        start_ana = max(0, onset_idx - pre_samples)
+        end_ana = min(len(signal), start_ana + window_samples)
+        segment_trimmed = signal[start_ana:end_ana]
         
         print(f"  Analysis window: {start_ana} to {end_ana} ({len(segment_trimmed)} samples, {len(segment_trimmed)/sr*1000:.1f}ms)")
         
@@ -550,17 +550,13 @@ if __name__ == "__main__":
         print(f"Mode: {'MONOPHONIC' if MONOPHONIC_MODE else 'POLYPHONIC'}")
         print("="*60)
         
-        test_audio_file = "sequential/hot_cross_buns2.mp3" 
+        test_audio_file = "sequential/mego_intro.mp3" 
 
         print(f"\nLoading: {test_audio_file}")
         signal, _ = librosa.load(test_audio_file, sr=sr, mono=True)
         print(f"Audio length: {len(signal)} samples ({len(signal)/sr:.2f} seconds)")
         
         plot_mixed_signal(signal, sr, title="Input Audio")
-        
-        # Optional: Tuning compensation
-        #tuning_ratio, tuning_cents = compute_tuning_compensation(signal, sr)
-        #bin_centers_tuned = bin_centers * tuning_ratio
         
         # Detect onsets
         onset_samples, onset_times = detect_onsets(
@@ -581,25 +577,25 @@ if __name__ == "__main__":
             bin_centers=bin_centers,
             bin_width=bin_width,
             threshold=monophonic_threshold,
-            min_segment_samples=(1024 * 0), # Can be 1024, 256, 128
+            min_segment_samples=(1024 * 2), # Can be 1024, 256, 128
             pre_roll_ms=-25,
             analysis_window_ms=200, #Window of analysis to capture after an onset in ms
             top_k=None if MONOPHONIC_MODE else None,
             polyphonic_threshold=polyphonic_threshold
         )
-         
+        
         # Display results
         print("\n" + "="*60)
         print("TRANSCRIPTION RESULTS")
         print("="*60)
         
         if timeline:
-            print(f"\nDetected {len(timeline)} note events:")
+            print(f"\n✅ Detected {len(timeline)} note events:")
             for i, event in enumerate(timeline, 1):
                 print(f"  {i}. {event['note']:4s} @ {event['start_time']:.3f}s "
                       f"(duration: {event['duration']:.3f}s, weight: {event['weight']:.3f})")
         else:
-            print("\nNo notes detected")
+            print("\n❌ No notes detected")
         
         # Create MIDI
         if timeline:
